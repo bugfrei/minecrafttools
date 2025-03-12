@@ -1,6 +1,51 @@
+# Windows API für Pixel auslesen
+Add-Type -TypeDefinition @"
+using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
+
+public static class ScreenTool
+{
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetDC(IntPtr hwnd);
+
+    [DllImport("gdi32.dll")]
+    public static extern uint GetPixel(IntPtr hdc, int nXPos, int nYPos);
+
+    [DllImport("user32.dll")]
+    public static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+
+    /*
+    public static System.Drawing.Color GetColorAt(int x, int y)
+    {
+        IntPtr hdc = GetDC(IntPtr.Zero);
+        uint pixel = GetPixel(hdc, x, y);
+        ReleaseDC(IntPtr.Zero, hdc);
+        return Color.FromArgb((int)(pixel & 0x000000FF),
+                                (int)(pixel & 0x0000FF00) >> 8,
+                                (int)(pixel & 0x00FF0000) >> 16);
+    }
+    */
+
+    public static int[] GetPixelColor(int x, int y)
+    {
+        IntPtr hdc = GetDC(IntPtr.Zero);
+        uint pixel = GetPixel(hdc, x, y);
+        ReleaseDC(IntPtr.Zero, hdc);
+        int r = (int)(pixel & 0x000000FF);       // Rot-Wert aus dem unteren Byte
+        int g = (int)((pixel & 0x0000FF00) >> 8); // Grün-Wert aus dem mittleren Byte
+        int b = (int)((pixel & 0x00FF0000) >> 16); // Blau-Wert aus dem oberen Byte
+        
+        return new int[] { r, g, b };
+    }
+}
+"@ -Language CSharp
+
+# WinAPI für Tastendrucke und Mausklicks
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
+
 
 public class Keyboard {
     [DllImport("user32.dll", SetLastError = true)]
@@ -20,6 +65,16 @@ public class MouseHelper {
     [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
     public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, IntPtr dwExtraInfo);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+
     private const uint MOUSEEVENTF_LEFTDOWN = 0x02;
     private const uint MOUSEEVENTF_LEFTUP = 0x04;
 
@@ -28,6 +83,13 @@ public class MouseHelper {
 
     private const uint MOUSEEVENTF_RIGHTDOWN = 0x08;
     private const uint MOUSEEVENTF_RIGHTUP = 0x10;
+
+    public static POINT GetMousePosition()
+    {
+        POINT p;
+        GetCursorPos(out p);
+        return p;
+    }
 
     public static void LeftDown() {
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
@@ -53,6 +115,7 @@ public class MouseHelper {
 }
 "@ -Language CSharp
 
+# Umwandeln eines Zeichens (String) in einen virtuellen Tastencode
 function Get-VirtualKey {
     param (
         [ValidateSet(
@@ -80,6 +143,7 @@ function Get-VirtualKey {
     return $keyCodes[$Key]
 }
 
+# Taste drücken (nur runter)
 function Down-Key {
     param (
         [byte]$Key
@@ -87,6 +151,8 @@ function Down-Key {
     # Taste drücken
     [Keyboard]::keybd_event($Key, 0, [Keyboard]::KEYEVENTF_KEYDOWN, 0)
 }
+
+# Taste loslassen (nur hoch)
 function Up-Key {
     param (
         [byte]$Key
@@ -94,6 +160,8 @@ function Up-Key {
     # Taste loslassen
     [Keyboard]::keybd_event($Key, 0, [Keyboard]::KEYEVENTF_KEYUP, 0)
 }
+
+# Taste drücken und loslassen
 function Press-Key {
     param (
         [byte]$Key,
@@ -106,6 +174,7 @@ function Press-Key {
     [Keyboard]::keybd_event($Key, 0, [Keyboard]::KEYEVENTF_KEYUP, 0)
 }
 
+# Kurzschreibweise für das Drücken einer Taste (mit Validierung)
 function PressKey {
     param (
         [ValidateSet(
@@ -121,9 +190,10 @@ function PressKey {
     $keyCode = (Get-VirtualKey $Key)
 
     if ($keyCode -ne 0) { 
-      Press-Key $keyCode $DelaySeconds
+        Press-Key $keyCode $DelaySeconds
     }
 }
+# Kurzschreibweise für das Drücken (nur runter) einer Taste (mit Validierung)
 function DownKey {
     param (
         [ValidateSet(
@@ -138,10 +208,11 @@ function DownKey {
     $keyCode = (Get-VirtualKey $Key)
 
     if ($keyCode -ne 0) { 
-      Down-Key $keyCode $DelaySeconds
+        Down-Key $keyCode $DelaySeconds
     }
 }
 
+# Kurzschreibweise für das Loslassen (nur hoch) einer Taste (mit Validierung)
 function UpKey {
     param (
         [ValidateSet(
@@ -156,31 +227,37 @@ function UpKey {
     $keyCode = (Get-VirtualKey $Key)
 
     if ($keyCode -ne 0) { 
-      Up-Key $keyCode $DelaySeconds
+        Up-Key $keyCode $DelaySeconds
     }
 }
 
-function leftdown {
+# Kurzschreibweise für das Drücken der linken Maustaste(nur runter)
+function LeftDown {
     [MouseHelper]::LeftDown()
 }
-function leftup {
+# Kurzschreibweise für das Loslassen der linken Maustaste (nur hoch)
+function LeftUp {
     [MouseHelper]::LeftUp()
 }
-function rightdown {
+# Kurzschreibweise für das Drücken der rechten Maustaste (nur runter)
+function RightDown {
     [MouseHelper]::RightDown()
 }
-function rightup {
+# Kurzschreibweise für das Loslassen der rechten Maustaste (nur hoch)
+function RightUp {
     [MouseHelper]::RightUp()
 }
 
+# Funktionssammlungen wichtiger Befehle
 
-function click {
+# Autoclicker
+function Click {
     param( 
         [Switch] $Simulate,
         [Switch] $NoDifferentTime,
         [Switch] $Middle,
         [Switch] $Long,
-	[String] $Command
+        [String] $Command
     )
     if ($Command -Contains "M") {
         $Middle = $true
@@ -189,18 +266,18 @@ function click {
         $Long = $true
     }
 
-   $DifferentTime = (!($noDifferentTime))
+    $DifferentTime = (!($noDifferentTime))
     if ($DifferentTime) {
-	Write-Host "Zeit je click wird +/- um 1/4 abweichen"
+        Write-Host "Zeit je click wird +/- um 1/4 abweichen"
     }
     $defTime = 750
     $defDuration = 3
     if ($Middle) {
-      $defTime = 30
+        $defTime = 30
     }	
     if ($Long) {
         $defTime = 2000
-	$defDuration = 10
+        $defDuration = 10
     }
     Write-Host "Zeit in Millisekunden zwischen den Klicks (" -NoNewline
     Write-Host $defTime -ForegroundColor Gray -NoNewline
@@ -233,35 +310,42 @@ function click {
         $maxDiffTime = $time / 2
     }
     $nextMove = ($End - [DateTime]::Now).TotalSeconds - 60
+    $clickCount = 0
+    $lastInfo = 0
     try {
         while ($running) {
+            $clickCount++
             if (!$Simulate) {
-		if ($Middle) {
-			[MouseHelper]::MiddleClick()
-		}
-		else {
-			[MouseHelper]::LeftClick()
-		}
+                if ($Middle) {
+                    [MouseHelper]::MiddleClick()
+                }
+                else {
+                    [MouseHelper]::LeftClick()
+                }
             }
             $d = $End - [DateTime]::Now
             if ($Long) {
-	        if ($d.TotalSeconds -le $nextMove) {
-		    $nextMove = ($End - [DateTime]::Now).TotalSeconds - 60
-		    pressKey "S"
-   		    Start-Sleep -Seconds 1
-		    pressKey "W"
-		}
-	    }
+                if ($d.TotalSeconds -le $nextMove) {
+                    $nextMove = ($End - [DateTime]::Now).TotalSeconds - 60
+                    pressKey "S"
+                    Start-Sleep -Seconds 1
+                    pressKey "W"
+                }
+            }
+
             $ds = $d.ToString("mm\:ss")
-            Write-Host "Click - Rest $ds" -NoNewLine -ForegroundColor Red
-            Write-Host " (Strg+C fuer Abbruch)" -ForegroundColor Gray -NoNewLine
             $sleepTime = $time
             if ($maxDiffTime -gt 0) {
                 $diffRnd = Get-Random -Minimum 0 -Maximum $maxDiffTime
                 $diffRnd = $diffRnd - ($maxDiffTime / 2)
                 $sleepTime += $diffRnd
             }
-            Write-Host " [Next: $sleepTime ms]" -ForegroundColor Green
+            if (([int]$d.TotalSeconds) -ne $lastInfo) {
+                Write-Host "Click $clickCount - Rest $ds" -NoNewLine -ForegroundColor Red
+                Write-Host " (Strg+C fuer Abbruch)" -ForegroundColor Gray -NoNewLine
+                $lastInfo = [int]$d.TotalSeconds
+                Write-Host " [Next: $sleepTime ms]" -ForegroundColor Green
+            }
             Start-Sleep -Milliseconds $sleepTime
             if ([datetime]::Now -ge $End) {
                 $running = $false
@@ -273,6 +357,7 @@ function click {
     }
 }
 
+# Vote-Seiten öffnen
 function op {
     Set-Clipboard "Zocarnium"
     Start "C:\Program Files\Google\Chrome\Application\chrome.exe" '--start-fullscreen "https://minecraft-server.eu/vote/index/200CE?ref=opsucht.net"'
@@ -289,4 +374,265 @@ function op {
     Start "C:\Program Files\Google\Chrome\Application\chrome.exe" '--start-fullscreen "https://minecraft-servers.biz/server/opsucht-net-citybuild-wirtschafts-server/?ref=opsucht.net"'
 }
 
+function Jump {
+    param (
+        [int] $Minuten = 10
+    )
+    $sec = $Minuten * 60
+    $End = [datetime]::Now.AddSeconds($sec)
+    $running = $true
+    Write-Host "ESSEN AUSWAEHLEN!!!!" -ForegroundColor Red
+    while ($true) {
+        $j = Read-Host "Essen ausgewählt? (j/N)"
+        if ($j -eq "j") {
+            break
+        }
+    }
+    Write-Host "Springen begint in 5 Sekunden"
+    Start-Sleep -Seconds 5
+    DownKey "Space"
+    RightDown
+    try {
+        while ($running) {
+            $d = $End - [DateTime]::Now
+            $ds = $d.ToString("mm\:ss")
+            Write-Host "Jump - Rest $ds" -ForegroundColor Red
+            Write-Host " (Strg+C fuer Abbruch)" -ForegroundColor Gray -NoNewLine
+            Start-Sleep -Seconds 1
+            if ([datetime]::Now -ge $End) {
+                $running = $false
+            }
+        }
+    }
+    catch {
+        Write-Host "Jump gestoppt."
+    }
 
+    UpKey "Space"
+    RightUp
+}
+
+
+# Hilfe
+function op? {
+    [CmdletBinding()]
+    [Alias("oph", "ophelp", "mc?", "mch", "mchelp")]
+    param (
+        # Validierung der Befehle
+        [ValidateSet(
+            'Jump', 'Click', 'op', 'op?', 'PressKey', 'DownKey', 'UpKey', 'LeftDown', 'LeftUp', 'RightDown', 'RightUp'
+        )]
+        [string] $Command
+    )
+
+    switch ($Command) {
+        'Jump' {
+            Write-Host "Jump [Minuten]"
+            Write-Host "  Minuten: Dauer in Minuten (Standard: 10)"
+            Write-Host ""
+            Write-Host "Springen und essen (Essen muss ausgewählt sein!)"
+        }
+        'Click' {
+            Write-Host "Click [-Simulate] [-NoDifferentTime] [-Middle] [-Long] [Command]"
+            Write-Host "  -Simulate: Simuliert das Klicken (ohne Mausaktion)"
+            Write-Host "  -NoDifferentTime: Keine unterschiedlichen Zeiten zwischen den Klicks"
+            Write-Host "  -Middle: Klick mit der mittleren Maustaste"
+            Write-Host "  -Long: Klick mit der linken Maustaste und drückt S und W jede Minute"
+            Write-Host "  Command: Klickbefehl (M = Middle, L = Long)"
+            Write-Host ""
+            Write-Host "Autoclicker"
+
+        }
+        'op' {
+            Write-Host "op"
+            Write-Host "  Öffnet die Vote-Seiten in Chrome"
+        }
+        'op?' {
+            Write-Host "op?"
+            Write-Host "  Zeigt die Hilfe für die Vote-Seiten"
+        }
+        'PressKey' {
+            Write-Host "PressKey [Key] [DelaySeconds]"
+            Write-Host "  Key: Tastencode (SPACE, 0-9, A-Z, Esc, Shift, Strg, Alt)"
+            Write-Host "  DelaySeconds: Verzögerung in Sekunden (Standard: 3)"
+            Write-Host ""
+            Write-Host "Taste drücken und loslassen"
+        }
+        'DownKey' {
+            Write-Host "DownKey [Key]"
+            Write-Host "  Key: Tastencode (SPACE, 0-9, A-Z, Esc, Shift, Strg, Alt)"
+            Write-Host ""
+            Write-Host "Taste drücken (nur runter)"
+        }
+        'UpKey' {
+            Write-Host "UpKey [Key]"
+            Write-Host "  Key: Tastencode (SPACE, 0-9, A-Z, Esc, Shift, Strg, Alt)"
+            Write-Host ""
+            Write-Host "Taste loslassen (nur hoch)"
+        }
+        'LeftDown' {
+            Write-Host "LeftDown"
+            Write-Host "  Drückt die linke Maustaste (nur runter)"
+        }
+        'LeftUp' {
+            Write-Host "LeftUp"
+            Write-Host "  Lässt die linke Maustaste los (nur hoch)"
+        }
+        'RightDown' {
+            Write-Host "RightDown"
+            Write-Host "  Drückt die rechte Maustaste (nur runter)"
+        }
+        'RightUp' {
+            Write-Host "RightUp"
+            Write-Host "  Lässt die rechte Maustaste los (nur hoch)"
+        }
+        default {
+            Write-Host "Auflistung aller Befehle:"
+            Write-Host "  Click: Autoclicker"
+            Write-Host "  op: Öffnet die Vote-Seiten in Chrome"
+            Write-Host "  op?: Zeigt die Hilfe für die Vote-Seiten"
+            Write-Host "  PressKey: Taste drücken und loslassen"
+            Write-Host "  DownKey: Taste drücken (nur runter)"
+            Write-Host "  UpKey: Taste loslassen (nur hoch)"
+            Write-Host "  LeftDown: Drückt die linke Maustaste (nur runter)"
+            Write-Host "  LeftUp: Lässt die linke Maustaste los (nur hoch)"
+            Write-Host "  RightDown: Drückt die rechte Maustaste (nur runter)"
+
+        }
+    }
+
+}
+
+function MausPos {
+    param(
+        # Validierung für Modis: Haltbarkeit 1, Haltbarkeit 2
+        [ValidateSet(
+            'Ohne', 'Haltbarkeit1', 'Haltbarkeit2'
+        )]
+        [string] $Modus
+    )
+    Write-Host "Maus positionieren - Position wird in 5 Sekunden ausgelesen"
+    Start-Sleep -Seconds 5
+    $p = [MouseHelper]::GetMousePosition()
+    $x = $p.X
+    $y = $p.Y
+    switch ($Modus) {
+        'Ohne' {
+            Write-Host "Mausposition: X: $x, Y: $y"
+        }
+        'Haltbarkeit1' {
+            Write-Host "Mausposition: X: $x, Y: $y"
+            Write-Host "Haltbarkeit1=$x,$y" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "In " -NoNewLine
+            Write-Host "~/.minecraftrc " -ForegroundColor Yellow -NoNewLine
+            Write-Host "eintragen" 
+            Set-Clipboard "Haltbarkeit1=$x,$y"
+        }
+        'Haltbarkeit2' {
+            Write-Host "Mausposition: X: $x, Y: $y"
+            Write-Host "Haltbarkeit2=$x,$y" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "In " -NoNewLine
+            Write-Host "~/.minecraftrc " -ForegroundColor Yellow -NoNewLine
+            Write-Host "eintragen" 
+            Set-Clipboard "Haltbarkeit2=$x,$y"
+        }
+    }
+    $c = [ScreenTool]::GetPixelColor($x, $y)
+    Write-Host "Farbe: R: $($c[0]), G: $($c[1]), B: $($c[2])"
+}
+
+function  ReadRC {
+    param(
+        $ValueName,
+        # Validate Typ: Raw,XY
+        [ValidateSet(
+            'Raw', 'XY'
+        )]
+        $Typ
+    )
+    if (!(Test-Path "~/.minecraftrc")) {
+        Write-Host "Datei ~/.minecraftrc existiert nicht"
+        return
+    }
+    $rc = Get-Content "~/.minecraftrc"
+    $rc | ForEach-Object {
+        if ($Typ -eq "Raw") {
+            if ($_ -match "$ValueName=(.*)") {
+                Write-Host $Matches[1]
+            }
+        }
+        else {
+            if ($_ -match "$ValueName=(\d+),(\d+)") {
+                $x = $Matches[1]
+                $y = $Matches[2]
+                $pos = [PSCustomObject]@{
+                    X = $x
+                    Y = $y
+                }
+                return $pos
+            }
+        }
+    }
+}
+
+function Haltbarkeit {
+    param(
+        # Validierung für Modis: Haltbarkeit 1, Haltbarkeit 2
+        [ValidateSet(
+            'Haltbarkeit1', 'Haltbarkeit2', 'Anderer'
+        )]
+        [string] $Modus,
+        [string] $Anderer
+    )   
+
+    if ($Modus -eq "Anderer") {
+        $mod = $Anderer
+    }
+    else {
+        $mod = $Modus
+    }
+    Write-Host "Haltbarkeitspruefung beginnt in 5 Sekunden"
+    Start-Sleep -Seconds 5
+
+    $pos = ReadRC $mod "XY"
+    $x = $pos.X
+    $y = $pos.Y
+    Write-Host "Haltbarkeit: $mod"
+    Write-Host "Mausposition: X: $x, Y: $y"
+    $color = [ScreenTool]::GetPixelColor($x, $y)
+    Write-Host "Farbe: R: $($color[0]), G: $($color[1]), B: $($color[2])"
+
+    Write-Host "Abbruch mit Ctrl-C"
+    $ac = 0
+    $esc = 0
+    while ($true) {
+        $c = [ScreenTool]::GetPixelColor($x, $y)
+        $r = $c[0]
+        $g = $c[1]
+        $b = $c[2]
+        if ($r -gt 250 -and $g -lt 110 -and $g -gt 50) {
+            Write-Host "ORANGE!" -ForegroundColor DarkYellow
+            $ac++
+            if ($ac -gt 10) {
+                [Console]::Beep(1000, 100)
+                $ac = 0
+            }
+        }
+        if ($r -gt 250 -and $g -lt 50 -and $g -gt 10) {
+            Write-Host "RED!" -ForegroundColor Red
+            [Console]::Beep(1000, 400)
+        }
+        if ($r -eq 0 -and $g -eq 0) {
+            Write-Host "SCHWARZ!"
+            [System.Console]::Beep(1000, 1000)
+            if ($esc -eq 2) {
+                PressKey Esc
+            }
+            $esc++
+        }
+        Start-Sleep -Seconds 1
+        Write-Host "Farbe: R: $r, G: $g, B: $b"
+    }
+}
