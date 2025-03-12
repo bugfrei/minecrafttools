@@ -593,10 +593,15 @@ function Haltbarkeit {
     else {
         $mod = $Modus
     }
+
+    Write-Host "Lade $mod Haltbarkeitsposition"
+    $pos = ReadRC $mod "XY"
+    if ($pos -eq $Null) {
+        Write-Host "Position fuer die angegebene Haltbarkeit nicht in ~/.minecraftrc gefunden!"
+        return;
+    }
     Write-Host "Haltbarkeitspruefung beginnt in 5 Sekunden"
     Start-Sleep -Seconds 5
-
-    $pos = ReadRC $mod "XY"
     $x = $pos.X
     $y = $pos.Y
     Write-Host "Haltbarkeit: $mod"
