@@ -612,11 +612,16 @@ function Haltbarkeit {
     Write-Host "Abbruch mit Ctrl-C"
     $ac = 0
     $esc = 0
+    $controlBeep = 0
     while ($true) {
         $c = [ScreenTool]::GetPixelColor($x, $y)
         $r = $c[0]
         $g = $c[1]
         $b = $c[2]
+        if ($controlBeep -ge 60) {
+            [Console]::Beep(3000, 50)
+            $controlBeep = 0
+        }
         if ($r -gt 250 -and $g -lt 110 -and $g -gt 50) {
             Write-Host "ORANGE!" -ForegroundColor DarkYellow
             $ac++
