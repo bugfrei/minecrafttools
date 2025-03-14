@@ -631,10 +631,12 @@ function Haltbarkeit {
                 [Console]::Beep(1000, 100)
                 $ac = 0
             }
+            $controlBeep = 0
         }
         if ($r -gt 250 -and $g -lt 50 -and $g -gt 10) {
             Write-Host "RED!" -ForegroundColor Red
             [Console]::Beep(1000, 400)
+            $controlBeep = 0
         }
         if ($r -eq 0 -and $g -eq 0) {
             Write-Host "SCHWARZ!"
@@ -643,6 +645,7 @@ function Haltbarkeit {
                 PressKey Esc
             }
             $esc++
+            $controlBeep = 0
         }
         Start-Sleep -Seconds 1
         Write-Host "Farbe: R: $r, G: $g, B: $b"
