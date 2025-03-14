@@ -622,6 +622,7 @@ function Haltbarkeit {
             [Console]::Beep(3000, 50)
             $controlBeep = 0
         }
+        $controlBeep++
         if ($r -gt 250 -and $g -lt 110 -and $g -gt 50) {
             Write-Host "ORANGE!" -ForegroundColor DarkYellow
             $ac++
