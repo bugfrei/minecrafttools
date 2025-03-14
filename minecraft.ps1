@@ -619,7 +619,8 @@ function Haltbarkeit {
         $g = $c[1]
         $b = $c[2]
         if ($controlBeep -ge 60) {
-            [Console]::Beep(3000, 50)
+            
+            for ($i = 0; $i -lt 3; $i++) { [Console]::Beep(3000, 50); Start-Sleep -Milliseconds 100 }
             $controlBeep = 0
         }
         $controlBeep++
