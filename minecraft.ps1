@@ -104,6 +104,10 @@ public class MouseHelper {
         mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, IntPtr.Zero);
     }
 
+    public static void RightClick() {
+        mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, IntPtr.Zero);
+        mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, IntPtr.Zero);
+    }
     public static void LeftClick() {
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, IntPtr.Zero);
@@ -112,7 +116,37 @@ public class MouseHelper {
         mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, IntPtr.Zero);
         mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, IntPtr.Zero);
     }
+    public static void MiddleDown() {
+        mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, IntPtr.Zero);
+    }
+    public static void MiddleUp() {
+        mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, IntPtr.Zero);
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool SetCursorPos(int X, int Y);
+
+    public static void MoveTo(int x, int y)
+    {
+        SetCursorPos(x, y);
+    }
+
+    public static void MoveBy(int dx, int dy)
+    {
+        POINT p;
+        GetCursorPos(out p);
+        SetCursorPos(p.X + dx, p.Y + dy);
+    }
+
+    private const uint MOUSEEVENTF_MOVE = 0x0001;
+
+    public static void MoveRelative(int dx, int dy)
+    {
+        mouse_event(MOUSEEVENTF_MOVE, (uint)dx, (uint)dy, 0, IntPtr.Zero);
+    }
+
 }
+
 "@ -Language CSharp
 
 # Umwandeln eines Zeichens (String) in einen virtuellen Tastencode
@@ -122,8 +156,8 @@ function Get-VirtualKey {
             'SPACE', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
             'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-            'Esc', 'Shift', 'Strg', 'Alt'
-
+            'Esc', 'Enter', 'Shift', 'Strg', 'Alt',
+            '-', '=', '!', '"', '$', '&', '/', '(', ')', '?', '*', '#', '<', '>', '|'
         )]
         [string]$Key
     )
@@ -137,7 +171,30 @@ function Get-VirtualKey {
         'K' = 0x4B; 'L' = 0x4C; 'M' = 0x4D; 'N' = 0x4E; 'O' = 0x4F
         'P' = 0x50; 'Q' = 0x51; 'R' = 0x52; 'S' = 0x53; 'T' = 0x54
         'U' = 0x55; 'V' = 0x56; 'W' = 0x57; 'X' = 0x58; 'Y' = 0x59
-        'Z' = 0x5A; 'Esc' = 0x1B; 'Shift' = 0x10; 'Strg' = 0x11; 'Alt' = 0x12
+        'Z' = 0x5A
+
+        'Esc' = 0x1B
+        'Enter' = 0x0D
+        'Shift' = 0x10
+        'Strg' = 0x11  # Control
+        'Alt' = 0x12
+
+        '-' = 0xBD  # VK_OEM_MINUS
+        '=' = 0xBB  # VK_OEM_PLUS
+
+        '!' = 0x31  # Shift + 1
+        '"' = 0xDE  # VK_OEM_7 (Anführungszeichen)
+        '$' = 0x34  # Shift + 4
+        '&' = 0x37  # Shift + 7
+        '/' = 0xBF  # VK_OEM_2
+        '(' = 0x39  # Shift + 9
+        ')' = 0x30  # Shift + 0
+        '?' = 0xBF  # Shift + /
+        '*' = 0x6A  # VK_MULTIPLY (NumPad), Shift+8 = Stern
+        '#' = 0x33  # Shift + 3
+        '<' = 0xBC  # VK_OEM_COMMA + Shift
+        '>' = 0xBE  # VK_OEM_PERIOD + Shift
+        '|' = 0xDC  # VK_OEM_5 (Backslash/Pipe-Taste, je nach Tastaturbelegung)
     }
 
     return $keyCodes[$Key]
@@ -181,7 +238,8 @@ function PressKey {
             'SPACE', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
             'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-            'Esc', 'Shift', 'Strg', 'Alt'
+            'Esc', 'Enter', 'Shift', 'Strg', 'Alt',
+            '-', '=', '!', '"', '$', '&', '/', '(', ')', '?', '*', '#', '<', '>', '|'
         )]
         [string]$Key,
         $DelaySeconds = 3
@@ -193,6 +251,48 @@ function PressKey {
         Press-Key $keyCode $DelaySeconds
     }
 }
+
+function Send-Text {
+    param (
+        [string]$Text
+    )
+
+    foreach ($char in $Text.ToCharArray()) {
+        if ($char -eq " ") {
+            PressKey "SPACE" 0.1
+            continue
+        }
+        PressKey $char 0.1
+    }
+}
+
+function DelHomes {
+    param (
+        [int]$From,
+        [int]$To,
+        [string]$Pattern = "n*"
+    )
+
+    Write-Host "Loesche Homes von $($Pattern.Replace("*", $From)) bis $($Pattern.Replace("*", $To)) in 3 Sekunden..."
+    Start-Sleep -Seconds 3
+    for ($nr = $From; $nr -le $To; $nr++) {
+        $h = $Pattern.Replace("*", $nr)
+        Send-Command "delhome $h"
+        Start-Sleep -Seconds 1
+    }
+}
+
+function Send-Command {
+    param (
+        [string]$Command
+    )
+
+    PressKey "-" 0.1
+    Start-Sleep -Milliseconds 100
+
+    Send-Text $Command
+    PressKey "ENTER" 0.1
+}
 # Kurzschreibweise für das Drücken (nur runter) einer Taste (mit Validierung)
 function DownKey {
     param (
@@ -200,7 +300,8 @@ function DownKey {
             'SPACE', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
             'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-            'Esc', 'Shift', 'Strg', 'Alt'
+            'Esc', 'Enter', 'Shift', 'Strg', 'Alt',
+            '-', '=', '!', '"', '$', '&', '/', '(', ')', '?', '*', '#', '<', '>', '|'
         )]
         [string]$Key
     )
@@ -219,7 +320,8 @@ function UpKey {
             'SPACE', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
             'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-            'Esc', 'Shift', 'Strg', 'Alt'
+            'Esc', 'Enter', 'Shift', 'Strg', 'Alt',
+            '-', '=', '!', '"', '$', '&', '/', '(', ')', '?', '*', '#', '<', '>', '|'
         )]
         [string]$Key
     )
@@ -247,6 +349,14 @@ function RightDown {
 function RightUp {
     [MouseHelper]::RightUp()
 }
+# Kurzschreibweise für das Drücken der rechten Maustaste (nur runter)
+function MiddleDown {
+    [MouseHelper]::MiddleDown()
+}
+# Kurzschreibweise für das Loslassen der rechten Maustaste (nur hoch)
+function MiddleUp {
+    [MouseHelper]::MiddleUp()
+}
 
 # Funktionssammlungen wichtiger Befehle
 
@@ -256,11 +366,16 @@ function Click {
         [Switch] $Simulate,
         [Switch] $NoDifferentTime,
         [Switch] $Middle,
+        [Switch] $Right,
         [Switch] $Long,
-        [String] $Command
+        [String] $Command,
+        [Switch] $Jump
     )
     if ($Command -Contains "M") {
         $Middle = $true
+    }
+    if ($Command -Contains "R") {
+        $Right = $true
     }
     if ($Command -Contains "L") {
         $Long = $true
@@ -312,6 +427,9 @@ function Click {
     $nextMove = ($End - [DateTime]::Now).TotalSeconds - 60
     $clickCount = 0
     $lastInfo = 0
+    if ($Jump) {
+        DownKey "Space"
+    }
     try {
         while ($running) {
             $clickCount++
@@ -320,7 +438,12 @@ function Click {
                     [MouseHelper]::MiddleClick()
                 }
                 else {
-                    [MouseHelper]::LeftClick()
+                    if ($Right) {
+                        [MouseHelper]::RightClick()
+                    }
+                    else {
+                        [MouseHelper]::LeftClick()
+                    }
                 }
             }
             $d = $End - [DateTime]::Now
@@ -355,6 +478,10 @@ function Click {
     catch {
         Write-Host "Autoclicker gestoppt."
     }
+
+    if ($Jump) {
+        UpKey "Space"
+    }
 }
 
 # Vote-Seiten öffnen
@@ -378,6 +505,14 @@ function Jump {
     param (
         [int] $Minuten = 10
     )
+    Write-Host "Auszeit (Enter=Keine; -=Shutdown Abbruch) :"
+    Read-Host $aus
+    if ($aus -eq "-") {
+        aus -Abbruch
+    }
+    elseif ($aus -ne "") {
+        Aus $aus
+    }
     $sec = $Minuten * 60
     $End = [datetime]::Now.AddSeconds($sec)
     $running = $true
@@ -506,38 +641,24 @@ function op? {
 function MausPos {
     param(
         # Validierung für Modis: Haltbarkeit 1, Haltbarkeit 2
-        [ValidateSet(
-            'Ohne', 'Haltbarkeit1', 'Haltbarkeit2'
-        )]
-        [string] $Modus
+        [string] $Modus = ""
     )
     Write-Host "Maus positionieren - Position wird in 5 Sekunden ausgelesen"
     Start-Sleep -Seconds 5
     $p = [MouseHelper]::GetMousePosition()
     $x = $p.X
     $y = $p.Y
-    switch ($Modus) {
-        'Ohne' {
-            Write-Host "Mausposition: X: $x, Y: $y"
-        }
-        'Haltbarkeit1' {
-            Write-Host "Mausposition: X: $x, Y: $y"
-            Write-Host "Haltbarkeit1=$x,$y" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "In " -NoNewLine
-            Write-Host "~/.minecraftrc " -ForegroundColor Yellow -NoNewLine
-            Write-Host "eintragen" 
-            Set-Clipboard "Haltbarkeit1=$x,$y"
-        }
-        'Haltbarkeit2' {
-            Write-Host "Mausposition: X: $x, Y: $y"
-            Write-Host "Haltbarkeit2=$x,$y" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "In " -NoNewLine
-            Write-Host "~/.minecraftrc " -ForegroundColor Yellow -NoNewLine
-            Write-Host "eintragen" 
-            Set-Clipboard "Haltbarkeit2=$x,$y"
-        }
+    if ($Modus -eq "") {
+        Write-Host "Mausposition: X: $x, Y: $y"
+    }
+    else {
+        Write-Host "Mausposition: X: $x, Y: $y"
+        Write-Host "$Modus=$x,$y" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "In " -NoNewLine
+        Write-Host "~/.minecraftrc " -ForegroundColor Yellow -NoNewLine
+        Write-Host "eintragen" 
+        Set-Clipboard "$Modus=$x,$y"
     }
     $c = [ScreenTool]::GetPixelColor($x, $y)
     Write-Host "Farbe: R: $($c[0]), G: $($c[1]), B: $($c[2])"
@@ -559,12 +680,12 @@ function  ReadRC {
     $rc = Get-Content "~/.minecraftrc"
     $rc | ForEach-Object {
         if ($Typ -eq "Raw") {
-            if ($_ -match "$ValueName=(.*)") {
+            if ($_ -match "^$ValueName=(.*)") {
                 Write-Host $Matches[1]
             }
         }
         else {
-            if ($_ -match "$ValueName=(\d+),(\d+)") {
+            if ($_ -match "^$ValueName=(\d+),(\d+)") {
                 $x = $Matches[1]
                 $y = $Matches[2]
                 $pos = [PSCustomObject]@{
@@ -578,76 +699,622 @@ function  ReadRC {
 }
 
 function Haltbarkeit {
+    [CmdletBinding()]
+    [Alias("halt")]
     param(
         # Validierung für Modis: Haltbarkeit 1, Haltbarkeit 2
-        [ValidateSet(
-            'Haltbarkeit1', 'Haltbarkeit2', 'Anderer'
-        )]
-        [string] $Modus,
-        [string] $Anderer
+        [ArgumentCompleter({
+                [OutputType([System.Management.Automation.CompletionResult])]
+                param(
+                    [string] $CommandName,
+                    [string] $ParameterName,
+                    [string] $WordToComplete,
+                    [System.Management.Automation.Language.CommandAst] $CommandAst,
+                    [System.Collections.IDictionary] $FakeBoundParameters
+                )
+                $rc = Get-Content "~/.minecraftrc"
+                $CompletionResults = @()
+                $rc | ForEach-Object {
+                    if ($_.Contains("=")) {
+                        $ValueName = $_.Split("=")[0].Trim()
+                        $CompletionResults += $ValueName
+                    }
+                }
+                $CompletionResults += "O"
+                $CompletionResults += "F"
+                $CompletionResults += "R"
+                $CompletionResults += "V"
+                $CompletionResults += "C"
+                $CompletionResults += "X"
+                $CompletionResults += "1"
+                $CompletionResults += "2"
+                $CompletionResults += "3"
+                $CompletionResults += "4"
+                $CompletionResults += "Alle"
+                $CompletionResults += "*"
+                $CompletionResults += "A"
+                $CompletionResults += "Main"
+                $CompletionResults += "M"
+            
+                return $CompletionResults
+            })]
+        $Modus = "Alle"
     )   
-
-    if ($Modus -eq "Anderer") {
-        $mod = $Anderer
+    if ($Modus -is [string]) {
+        $Modus = @($Modus)
     }
+    $fullModus = @()
+    $all = ""
+    $Alle = $false
+    foreach ($m in $Modus) {
+        Switch ($m) {
+            "O" { $m = "Offhand" }
+            "F" { $m = "Schwert" }
+            "R" { $m = "Spitzhacke" }
+            "V" { $m = "Schaufel" }
+            "C" { $m = "Axt" }
+            "X" { $m = "Hacke" }
+            "1" { $m = "Slot1" }
+            "2" { $m = "Slot2" }
+            "3" { $m = "Slot3" }
+            "4" { $m = "Slot4" }
+            "*" { $m = "Alle" }
+            "A" { $m = "Alle" }
+            "M" { $m = "Main" }
+        }
+        if ($m -eq "Alle") {
+            $Alle = $true
+        }
+        if ($m -eq "Main") {
+            $fullModus += "Spitzhacke"
+            $fullModus += "Schaufel"
+            $fullModus += "Axt"
+            $fullModus += "Hacke"
+            $all += "Spitzhacke, Schaufel, Axt, Hacke, "
+        }
+        else {
+            $fullModus += $m
+            $all += "$m, "
+        }
+    }
+    $all = $all.Substring(0, $all.Length - 2)
+
+    Write-Host "Modus : $all" -ForegroundColor Yellow
+    $mods = @()
+    if ($Alle) {
+        $rc = Get-Content "~/.minecraftrc"
+        $name = ""
+        $rc | ForEach-Object {
+            if ($_.Contains("=")) {
+                $name = $_.Split("=")[0].Trim()
+                $mods += $name
+            }
+        }
+    }       
     else {
-        $mod = $Modus
+        foreach ($m in $fullModus) {
+            $mods += $m
+        }
     }
-
-    Write-Host "Lade $mod Haltbarkeitsposition"
-    $pos = ReadRC $mod "XY"
-    if ($pos -eq $Null) {
+    if ($mods.Count -eq 0) {
+        Write-Host "Keine Modis gefunden"
+        return
+    }
+    $modPos = @()
+    foreach ($mod in $mods) {
+        $pos = ReadRC $mod "XY"
+        if ($pos -eq $Null) {
+            Write-Host "Position fuer die angegebene Haltbarkeit nicht in ~/.minecraftrc gefunden!"
+            return;
+        }
+        
+        Add-Member -InputObject $pos -MemberType NoteProperty -Name "Name" -Value $mod
+        $modPos += $pos
+    }
+    if ($modPos.Count -eq 0) {
         Write-Host "Position fuer die angegebene Haltbarkeit nicht in ~/.minecraftrc gefunden!"
         return;
     }
     Write-Host "Haltbarkeitspruefung beginnt in 5 Sekunden"
     Start-Sleep -Seconds 5
-    $x = $pos.X
-    $y = $pos.Y
-    Write-Host "Haltbarkeit: $mod"
-    Write-Host "Mausposition: X: $x, Y: $y"
-    $color = [ScreenTool]::GetPixelColor($x, $y)
-    Write-Host "Farbe: R: $($color[0]), G: $($color[1]), B: $($color[2])"
 
     Write-Host "Abbruch mit Ctrl-C"
     $ac = 0
     $esc = 0
     $controlBeep = 0
     while ($true) {
-        $c = [ScreenTool]::GetPixelColor($x, $y)
-        $r = $c[0]
-        $g = $c[1]
-        $b = $c[2]
+        $signal = ""
+        Clear-Host
+        foreach ($pos in $modPos) {
+            $x = $pos.X
+            $y = $pos.Y
+
+            $c = [ScreenTool]::GetPixelColor($x, $y)
+            $r = $c[0]
+            $g = $c[1]
+            $b = $c[2]
+
+            Write-Host "Pos: $($pos.Name) R: $r, G: $g, B: $b -> " -NoNewLine
+            if ($r -ge 254 -and ($g -ge 160 -and $g -lt 255)) {
+                Write-Host "GELB!" -ForegroundColor DarkYellow
+                $ac++
+                if ($ac -gt 3) {
+                    if ($signal -lt 1) {
+                        $signal = 1
+                    }
+                    $ac = 0
+                }
+                $controlBeep = 0
+            }
+            elseif ($r -ge 254 -and ($g -ge 100 -and $g -lt 160)) {
+                Write-Host "ORANGE!" -ForegroundColor Red
+                if ($signal -lt 2) {
+                    $signal = 2
+                }
+                $controlBeep = 0
+            }
+            elseif ($r -ge 254 -and ($g -ge 50 -and $g -lt 100)) {
+                Write-Host "RED!" -ForegroundColor Red
+                if ($signal -lt 3) {
+                    $signal = 3
+                }
+                $controlBeep = 0
+            }
+            elseif ($r -eq 0 -and $g -eq 0) {
+                Write-Host "SCHWARZ!" -ForegroundColor Black -BackgroundColor Red
+                if ($signal -lt 4) {
+                    $signal = 4
+                }
+                if ($esc -eq 3) {
+                    PressKey Esc
+                }
+
+                $c = [ScreenTool]::GetPixelColor($x - 1, $y)
+                $r = $c[0]
+                $g = $c[1]
+                $b = $c[2]
+                if ($r -eq 0 -and $g -eq 0) {
+                    if ($signal -lt 5) {
+                        $signal = 5
+                    }
+                }
+
+                $esc++
+                $controlBeep = 0
+            }
+            else {
+                Write-Host "OK" -ForegroundColor Green
+            }
+        }
+        switch ($signal) {
+            1 {
+                [Console]::Beep(1000, 200)
+            }
+            2 {
+                [Console]::Beep(1000, 400)
+            }
+            3 {
+                [Console]::Beep(1000, 800)
+            }
+            4 {
+                [System.Console]::Beep(1000, 1000)
+            }
+            5 {
+                for ($a = 0; $a -lt 10; $a++) {
+                    [System.Console]::Beep(500, 500); [System.Console]::Beep(2000, 500)	
+                }
+            }
+        }
         if ($controlBeep -ge 60) {
-            
             for ($i = 0; $i -lt 3; $i++) { [Console]::Beep(3000, 50); Start-Sleep -Milliseconds 100 }
             $controlBeep = 0
         }
         $controlBeep++
-        if ($r -gt 250 -and $g -lt 110 -and $g -gt 50) {
-            Write-Host "ORANGE!" -ForegroundColor DarkYellow
-            $ac++
-            if ($ac -gt 10) {
-                [Console]::Beep(1000, 100)
-                $ac = 0
-            }
-            $controlBeep = 0
-        }
-        if ($r -gt 250 -and $g -lt 50 -and $g -gt 10) {
-            Write-Host "RED!" -ForegroundColor Red
-            [Console]::Beep(1000, 400)
-            $controlBeep = 0
-        }
-        if ($r -eq 0 -and $g -eq 0) {
-            Write-Host "SCHWARZ!"
-            [System.Console]::Beep(1000, 1000)
-            if ($esc -eq 2) {
-                PressKey Esc
-            }
-            $esc++
-            $controlBeep = 0
-        }
         Start-Sleep -Seconds 1
-        Write-Host "Farbe: R: $r, G: $g, B: $b"
     }
+}
+
+function aus {
+    param(
+        $Zeit = "",
+        [Switch] $Abbruch
+    )
+    if ($Abbruch) {
+        $Zeit = ""
+    }
+
+
+    if ($Zeit -ne "") {
+        $dest = [datetime]::parse($zeit)
+        $jetzt = [datetime]::now
+        $diff = $dest - $jetzt
+        [long] $dsec = $diff.totalseconds
+        if ($dsec -lt 0) {
+            $dsec += (24 * 60 * 60)
+        }
+        shutdown /a *>$null
+        Write-Host "Computer aus in $dsec Sekunden"
+        shutdown /s /f /t $dsec
+    }
+    else {
+        Write-Host "Herunterfahren abgebrochen"
+        shutdown /a *>$null
+    }
+}
+
+# Angelsystem
+
+$SCREEN_LEFT = 2160
+$SCREEN_TOP = 0
+$SCREEN_RIGHT = 3439
+$SCREEN_BOTTOM = 764
+
+$SCREEN_CENTER_X = ($SCREEN_LEFT + $SCREEN_RIGHT) / 2
+$SCREEN_CENTER_Y = ($SCREEN_TOP + $SCREEN_BOTTOM) / 2
+
+function Angeln {
+    Write-Host "Auszeit (Enter=Keine; -=Shutdown Abbruch) : " -NoNewLine
+    $aus = Read-Host 
+    if ($aus -eq "-") {
+        aus -Abbruch
+    }
+    elseif ($aus -ne "") {
+        Aus $aus
+    }
+    
+    Write-Host "Angeln beginnt in 5 Sekunden"
+    Start-Sleep -Seconds 5
+    Write-Host "Angeln beginnt"
+    $lastMove = [DateTime]::Now
+    while ($true) {
+        Write-Host "Auswerfen" -ForegroundColor Red
+        [MouseHelper]::RightClick()
+        Start-Sleep -Seconds 2
+        CheckBiss
+        Write-Host "Einholen" -ForegroundColor Green
+        [MouseHelper]::RightClick()
+        Start-Sleep -Seconds 1
+        $lastMoveDiff = [DateTime]::Now - $lastMove
+        if ($lastMoveDiff.TotalSeconds -gt 60) {
+            DownKey "S"
+            Start-Sleep -Seconds 1
+            UpKey "S"
+            DownKey "W"
+            Start-Sleep -Milliseconds 1100
+            UpKey "W"
+            $lastMove = [DateTime]::Now
+        }
+    }
+}
+
+function CheckBiss {
+    param (
+    )
+    $x = 28
+    $y = 709
+
+    $count = 0
+    while ($true) {
+        Start-Sleep -Milliseconds 100
+        $count++
+        $color = [ScreenTool]::GetPixelColor($x, $y)
+        if ($color[0] -gt 50) {
+            Write-Host "Angebissen"
+            break
+        }
+        if ($count -gt 400) {
+            Write-Host "Kein Biss"
+            break
+        }
+    }
+
+}
+function ScannCenter {
+    param ()
+    $radius = 3
+    $found = $false
+    $count = 0
+    while (!$found) {
+        $pos = FindRedInCenterNear -radius $radius -preRadius ($radius - 2)
+        if ($pos -ne $null) {
+            return $pos
+            break
+        }
+        else {
+            $radius += 2
+            $count++
+            if ($count -gt 40) {
+                Write-Host "Kein Rot gefunden"
+                return $null
+                break
+            }
+        }
+    }
+}
+function FindRedInCenterNear {
+    param (
+        $x = -1,
+        $y = -1,
+        [int] $radius = 50,
+        [int] $preRadius = 0
+
+    )
+    if ($x -eq -1) {
+        $x = $SCREEN_CENTER_X
+    }
+    if ($y -eq -1) {
+        $y = $SCREEN_CENTER_Y
+    }
+
+    Write-Host "X $x  Y $y"
+    
+    $found = $false
+    for ($i = - $radius; $i -le $radius; $i += 2) {
+        if ($preRadius -gt 0 -and ($i -ge - $preRadius -and $i -le $preRadius)) {
+            continue
+        }
+        for ($j = - $radius; $j -le $radius; $j += 2) {
+            if ($preRadius -gt 0 -and ($j -ge - $preRadius -and $j -le $preRadius)) {
+                continue
+            }
+            $color = [ScreenTool]::GetPixelColor($x + $i, $y + $j)
+            if ($color[0] -gt 100 -and $color[1] -lt 50 -and $color[2] -lt 50) {
+                Write-Host "Red found at: X: $($x + $i), Y: $($y + $j)"
+                $found = $true
+                $returnObject = [PSCustomObject]@{
+                    X = $x + $i
+                    Y = $y + $j
+                }
+                break
+            }
+        }
+        if ($found) {
+            break
+        }
+    }
+    if ($found) {
+        return $returnObject
+    }
+    else {
+        return $null
+    }
+}
+
+function GoBackward {
+    param()
+
+    DownKey "S"
+    DownKey "D"
+    Start-Sleep -Milliseconds 300
+    UpKey "D"
+    UpKey "S"
+}
+function GoForward {
+    param()
+
+    DownKey "W"
+    DownKey "D"
+    Start-Sleep -Milliseconds 300
+    UpKey "D"
+    UpKey "W"
+}
+function GoLeft {
+    param()
+
+    DownKey "A"
+    DownKey "W"
+    Start-Sleep -Milliseconds 200
+    UpKey "W"
+    UpKey "A"
+}
+function GoRight {
+    param()
+
+    DownKey "D"
+    DownKey "W"
+    Start-Sleep -Milliseconds 100
+    UpKey "W"
+    UpKey "D"
+}
+
+function Kakao() {
+    param (
+        [int] $Anzahl = 100
+    )
+    for ($i = 1; $i -lt $Anzahl; $i++) {
+        # 106 °
+        GoRight
+        PressKey "2" -DelaySeconds 0
+        Start-Sleep -Milliseconds 50
+        [MouseHelper]::RightClick()
+        Start-Sleep -Milliseconds 50
+        PressKey "1" -DelaySeconds 0
+        Start-Sleep -Milliseconds 40
+        [MouseHelper]::RightDown()
+        Start-Sleep -Milliseconds 260
+        [MouseHelper]::RightUp()
+        Start-Sleep -Milliseconds 40
+        PressKey "C" -DelaySeconds 0
+        GoLeft
+        Start-Sleep -Milliseconds 40
+        [MouseHelper]::LeftClick()
+        Start-Sleep -Milliseconds 40
+    }
+}
+function Bambus1 {
+    # ### ### ###
+    # ### ### ###   VOLL BLÖCKE
+    # ### ### ###
+    # ###     ###
+    # ###  B  ###   BLÖCKE l&r, BAMBUS m
+    # ###     ###   
+    # ### ___ ###   FALLTÜRE hochgeklappt
+    # ###     ###   FREI (hier stehen)
+    # ###     ###
+    # ### ### ###
+    # ### ### ###   VOLL BLÖCKE
+    # ### ### ###
+    #
+    # 
+    param (
+        [int] $Anzahl = 100
+    )
+    for ($i = 1; $i -lt $Anzahl; $i++) {
+        GoBackward
+        PressKey "1" -DelaySeconds 0
+        Start-Sleep -Milliseconds 50
+        [MouseHelper]::RightDown()
+        Start-Sleep -Milliseconds 260
+        [MouseHelper]::RightUp()
+        Start-Sleep -Milliseconds 40
+        GoForward
+        PressKey "F" -DelaySeconds 0
+        Start-Sleep -Milliseconds 40
+        [MouseHelper]::LeftClick()
+        Start-Sleep -Milliseconds 40
+    }
+}
+
+function Mine {
+    param(
+        [switch] $WithMove
+    )
+    Write-Host "Mining beginnt in ..."
+    Write-Host "3, " -NoNewline
+    Start-Sleep -Seconds 1
+    Write-Host "2, " -NoNewline
+    Start-Sleep -Seconds 1
+    Write-Host "1" -NoNewline
+    Start-Sleep -Seconds 1
+    Write-Host "Mining beginnt"
+    $cnt = 30
+    $stp = 12
+    LeftDown
+    if ($WithMove) {
+        for ($i = 0; $i -lt ($cnt / 2); $i++) {
+            [MouseHelper]::MoveRelative(-$stp, 0);
+            Start-Sleep -Milliseconds 5
+        }
+        while ($true) {
+            for ($i = 0; $i -lt $cnt; $i++) {
+                [MouseHelper]::MoveRelative($stp, 0);
+                Start-Sleep -Milliseconds 5
+            }
+            for ($i = 0; $i -lt $cnt; $i++) {
+                [MouseHelper]::MoveRelative(-$stp, 0);
+                Start-Sleep -Milliseconds 5
+            }
+        }
+    }
+    else {
+        LeftDown -DelaySeconds 0
+        while ($true) {
+
+            Start-Sleep -Milliseconds 300
+            $p = [MouseHelper]::GetMousePosition()
+            $x = $p.X
+            $y = $p.Y
+            if ($x -lt 200) {
+                [System.Console]::Beep(1000, 1000)
+                LeftDown -DelaySeconds 0
+            }
+
+        }
+    }
+
+}
+
+function Plant {
+    param(
+
+    )
+    Write-Host "Saehen beginnt in ..." -NoNewline
+    Start-Sleep -Seconds 1
+    Write-Host "3, " -NoNewline
+    Start-Sleep -Seconds 1
+    Write-Host "2, " -NoNewline
+    Start-Sleep -Seconds 1
+    Write-Host "1" -NoNewline
+    Start-Sleep -Seconds 1
+    Write-Host "Saehen beginnt"
+    RightDown
+    # Alle Felder
+    $richtung = $true;
+    $anzFelder = 10
+    for ($f = 0; $f -lt $anzFelder; $f++) {
+        Write-Host "Feld $($f+1): " -NoNewline
+        # ein Feld je 7 Reihen
+        for ($r = 0; $r -lt 7; $r++) {
+            Write-Host "$($r+1) " -NoNewline
+            if ($richtung) {
+                PlantBack
+                PlantRight
+            }
+            else {
+                PlantForward
+                PlantRight        
+            }
+            $richtung = !$richtung
+        }
+        if ($f -lt 9) {
+            PlantRight 1000
+            Start-Sleep -Milliseconds 200
+            PlantLeft 1500
+        }
+        Write-Host
+    }
+    # Feld 10 hat 8 Reihe    
+    PlantBack
+
+    RightUp
+
+}
+
+function PlantBack {
+    param ( $time = 2050 )
+    DownKey "S"
+    PlantMiddle $time
+    UpKey "S"
+}
+function PlantForward {
+    param ( $time = 2050 )
+    DownKey "W"
+    PlantMiddle $time
+    UpKey "W"
+}
+function PlantRight {
+    param ( $time = 220 )
+    DownKey "D"
+    PlantMiddle $time
+    UpKey "D"
+}
+function PlantLeft {
+    param ( $time = 210 )
+    DownKey "A"
+    PlantMiddle $time
+    UpKey "A"
+}
+
+function PlantMiddle {
+    param (
+        $time = 2200
+    )
+    $start = [DateTime]::Now
+    while ($true) {
+        $diff = ([Datetime]::Now - $start).TotalMilliseconds
+        if ($diff -gt $time) {
+            break;
+        }
+        [MouseHelper]::MiddleClick()
+        Start-Sleep -Milliseconds 20
+    }
+}
+
+function test {
+    Start-Sleep -Seconds 3
+    RightDown
+    PlantBack
+    PlantRight
+    PlantForward
+    RightUp
 }
